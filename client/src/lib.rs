@@ -1,3 +1,4 @@
+pub mod simdsp_bridge;
 #[cfg(test)]
 mod tests {
     #[test]
