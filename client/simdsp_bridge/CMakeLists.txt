@@ -19,7 +19,7 @@ FetchContent_Declare(catch2
 
 FetchContent_Declare(simdsp
   GIT_REPOSITORY https://github.com/synthizer/simdsp
-  GIT_TAG fb6276ff5d831746da093a9036f1ad6329018959
+  GIT_TAG 8fd4e13767730098bd0fdc3fdbaea54e71a3a8e8
 )
 
 FetchContent_MakeAvailable(benchmark catch2 simdsp)
