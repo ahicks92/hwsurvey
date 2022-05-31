@@ -1,7 +1,7 @@
 pub mod memory;
 pub mod simdsp_bridger;
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct PayloadV1 {
     pub simdsp: simdsp_bridger::SystemInfo,
     pub memory: memory::Memory,
@@ -10,7 +10,7 @@ pub struct PayloadV1 {
     pub mac_address: String,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "version", rename_all = "snake_case")]
 pub enum Payload {
     V1(PayloadV1),

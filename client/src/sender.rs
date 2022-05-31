@@ -8,6 +8,9 @@ const RETRY_DUR: Duration = Duration::from_secs(30);
 const JITTER: Duration = Duration::from_secs(20);
 const MAX_ATTEMPTS: u64 = 5;
 
+/// Where are we going?
+const SUBPATH: &str = "/report/v1";
+
 /// This should be large because we're going to be running in one GCP region for all over the world.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -41,7 +44,7 @@ fn attempt_sending(
     let serialized = serde_json::to_string(payload)?;
 
     let resp = client
-        .post(url.clone())
+        .post(url.join(SUBPATH)?)
         .body(serialized)
         .timeout(REQUEST_TIMEOUT)
         .send()?;

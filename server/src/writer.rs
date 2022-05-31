@@ -21,16 +21,21 @@ pub struct WriterThread {
     sender: Sender<Rows>,
 }
 
-/// Flush a batch.  Handles failures by logging.
-async fn flush_batch(batch: &[Rows]) {
-    log::info!("Would write: {:?}", batch);
-}
-
 impl WriterThread {
     pub fn send(&self, item: Rows) -> Result<()> {
         self.sender.try_send(item)?;
         Ok(())
     }
+}
+
+/// Flush a batch.  Handles failures by logging.
+async fn flush_batch(batch: &mut Vec<Rows>) {
+    if batch.is_empty() {
+        return;
+    }
+
+    log::info!("Would write: {:?}", batch);
+    batch.clear();
 }
 
 async fn writer_task_fallible(writer: Arc<WriterThread>) -> Result<()> {
@@ -42,14 +47,11 @@ async fn writer_task_fallible(writer: Arc<WriterThread>) -> Result<()> {
             Ok(r) = writer.receiver.recv() => {
                 batch.push(r);
                 if batch.len() > BATCH_SIZE {
-                    flush_batch(&batch[..]).await;
-                    batch.clear();
+                    flush_batch(&mut batch).await;
                 }
             },
             _ = flush_tick.tick() => {
-                if !batch.is_empty() {
-                    flush_batch(&batch[..]).await;
-                }
+                flush_batch(&mut batch).await;
             }
         }
     }

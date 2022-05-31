@@ -8,7 +8,8 @@ pub fn build_payload(application_name: String) -> Result<Payload> {
 
     let sysinfo = System::new_with_specifics(sysinfo::RefreshKind::new().with_memory().with_cpu());
     let memory = Memory {
-        total: sysinfo.total_memory(),
+        // We want bytes, sysinfo gives us kb.
+        total: sysinfo.total_memory() * 1024,
     };
 
     let mac_address_raw = mac_address::get_mac_address()?

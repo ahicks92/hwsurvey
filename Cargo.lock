@@ -650,6 +650,8 @@ dependencies = [
  "env_logger",
  "hwsurvey_payloads",
  "log",
+ "only_every",
+ "serde_json",
  "tokio",
  "tokio-postgres",
  "warp",
@@ -956,6 +958,12 @@ name = "once_cell"
 version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7709cef83f0c1f58f666e746a08b21e0085f7440fa6a29cc194d68aac97a4225"
+
+[[package]]
+name = "only_every"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d1ee71d0110529136c471cf3b41dabaa07f1ccedc757e57f4753bca4115e61c9"
 
 [[package]]
 name = "opaque-debug"

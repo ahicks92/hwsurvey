@@ -1,5 +1,6 @@
-pub mod rows;
-pub mod writer;
+mod api;
+mod rows;
+mod writer;
 
 use std::str::FromStr;
 
@@ -23,15 +24,16 @@ async fn main() {
 
     let args = Args::parse();
 
-    let echoback = warp::path!("echoback")
-        .and(warp::post())
-        .and(warp::body::bytes())
-        .and(warp::filters::body::content_length_limit(1024 * 10))
-        .map(|body: bytes::Bytes| body.to_vec());
-
     let ip: std::net::IpAddr =
         std::net::IpAddr::from_str(&args.address).expect("Could not parse IP address");
 
-    writer::spawn();
-    warp::serve(echoback).run((ip, args.port)).await;
+    let writer = writer::spawn();
+
+    let report = warp::path!("report" / "v1")
+        .and(warp::post())
+        .and(warp::filters::body::content_length_limit(1024 * 10))
+        .and(warp::filters::body::bytes())
+        .then(move |b| api::report_v1::report_v1(writer.clone(), b));
+
+    warp::serve(report).run((ip, args.port)).await;
 }
