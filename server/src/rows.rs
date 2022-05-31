@@ -1,5 +1,5 @@
 //! Get from a payload to a set of normalized rows, suitable for the database.
-use hwsurvey_payloads::{Payload, PayloadV1};
+use hwsurvey_payloads::PayloadV1;
 const KB: u64 = 1024;
 const MB: u64 = KB * 1024;
 const GB: u64 = 1024 * MB;
@@ -195,13 +195,11 @@ fn extract_mem_row(payload: &PayloadV1) -> MemoryRow {
     }
 }
 
-pub fn payload_to_rows(payload: &Payload) -> Rows {
-    match payload {
-        Payload::V1(p) => Rows {
-            cpu_capabilities: extract_cpu_caps(p),
-            cpu_caches: extract_caches_row(p),
-            os: extract_os_row(p),
-            memory: extract_mem_row(p),
-        },
+pub fn payload_to_rows(payload: &PayloadV1) -> Rows {
+    Rows {
+        cpu_capabilities: extract_cpu_caps(payload),
+        cpu_caches: extract_caches_row(payload),
+        os: extract_os_row(payload),
+        memory: extract_mem_row(payload),
     }
 }

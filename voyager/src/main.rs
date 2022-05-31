@@ -12,4 +12,3 @@ fn main() {
     let args = Args::parse();
     hwsurvey_client::send_synchronously(args.url, args.app_name, 1);
 }
-

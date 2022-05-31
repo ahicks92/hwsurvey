@@ -1,9 +1,9 @@
 use anyhow::Result;
 use sysinfo::{System, SystemExt};
 
-use hwsurvey_payloads::{memory::Memory, Payload, PayloadV1};
+use hwsurvey_payloads::{memory::Memory, PayloadV1};
 
-pub fn build_payload(application_name: String) -> Result<Payload> {
+pub fn build_payload(application_name: String) -> Result<PayloadV1> {
     let simdsp = hwsurvey_simdsp_bridger::get_system_info()?;
 
     let sysinfo = System::new_with_specifics(sysinfo::RefreshKind::new().with_memory().with_cpu());
@@ -18,13 +18,13 @@ pub fn build_payload(application_name: String) -> Result<Payload> {
     let mac_address = hex::encode(mac_address_raw.bytes());
     let os = std::env::consts::OS.to_string();
 
-    Ok(Payload::V1(PayloadV1 {
+    Ok(PayloadV1 {
         simdsp,
         memory,
         os,
         mac_address,
         application_name,
-    }))
+    })
 }
 
 #[test]

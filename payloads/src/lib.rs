@@ -9,9 +9,3 @@ pub struct PayloadV1 {
     pub application_name: String,
     pub mac_address: String,
 }
-
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-#[serde(tag = "version", rename_all = "snake_case")]
-pub enum Payload {
-    V1(PayloadV1),
-}

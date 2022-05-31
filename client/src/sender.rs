@@ -39,7 +39,7 @@ fn compute_sleep(attempts: u64) -> Result<Duration> {
 fn attempt_sending(
     client: &Client,
     url: &reqwest::Url,
-    payload: &hwsurvey_payloads::Payload,
+    payload: &hwsurvey_payloads::PayloadV1,
 ) -> Result<()> {
     let serialized = serde_json::to_string(payload)?;
 
