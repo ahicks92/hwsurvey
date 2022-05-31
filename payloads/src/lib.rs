@@ -7,5 +7,5 @@ pub struct PayloadV1 {
     pub memory: memory::Memory,
     pub os: String,
     pub application_name: String,
-    pub mac_address: String,
+    pub machine_id: String,
 }
