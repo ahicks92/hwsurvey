@@ -2,17 +2,22 @@ CREATE EXTENSION hll;
 
 CREATE TABLE application(
     id UUID PRIMARY KEY,
-    name TEXT UNIQUE
+    name TEXT UNIQUe NOT NULL
 );
 
 CREATE TABLE cpu_manufacturer(
     id UUID PRIMARY KEY,
-    name TEXT NOT NULL
+    name TEXT UNIQUE NOT NULL
 );
 
 CREATE TABLE os(
     id UUID PRIMARY KEY,
-    name TEXT NOT NULL
+    name TEXT UNIQUE NOT NULL
+);
+
+CREATE TABLE cpu_architecture(
+    id UUID PRIMARY KEY,
+    name TEXT UNIQUE NOT NULL
 );
 
 CREATE TABLE cpu_capabilities(
@@ -21,6 +26,7 @@ CREATE TABLE cpu_capabilities(
     os UUID NOT NULL,
     cpu_manufacturer UUID NOT NULL,
     application UUID NOT NULL,
+    architecture UUID NOT NULL,
 
     x86_sse2 BOOLEAN NOT NULL,
     x86_sse3 BOOLEAN NOT NULL,
@@ -36,12 +42,14 @@ CREATE TABLE cpu_capabilities(
 
     FOREIGN KEY(os) REFERENCES os(id),
     FOREIGN KEY(cpu_manufacturer) REFERENCES cpu_manufacturer(id),
-    FOREIGN KEY (application) REFERENCES application(id)
+    FOREIGN KEY (application) REFERENCES application(id),
+    FOREIGN KEY (architecture) REFERENCES cpu_architecture(id)
 );
 
 CREATE INDEX cpu_capabilities_day ON cpu_capabilities(day);
 CREATE INDEX cpu_capabilities_os ON cpu_capabilities(os);
 CREATE INDEX cpu_capabilities_application ON cpu_capabilities(application);
+CREATE INDEX cpu_capabilities_architecture ON cpu_capabilities(architecture);
 
 -- This table tracks the country as reported from Cloudflare.  See
 -- https://developers.cloudflare.com/fundamentals/get-started/reference/http-request-headers/
@@ -69,3 +77,7 @@ INSERT INTO os(id, name) VALUES
     ('81f9efea-e454-11ec-be9f-00d8612ce6ed', 'windows'),
     ('8552a506-e454-11ec-a0c3-00d8612ce6ed', 'linux'),
     ('88f282bc-e454-11ec-b882-00d8612ce6ed', 'macos');
+
+INSERT into cpu_architecture(id, name) VALUES
+    ('761f46a4-e457-11ec-9b5d-00d8612ce6ed', 'aarch64'),
+    ('90131126-e457-11ec-9405-00d8612ce6ed', 'x86');
