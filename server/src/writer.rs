@@ -5,8 +5,6 @@ use anyhow::Result;
 use async_channel::{bounded, Receiver, Sender};
 use tokio::select;
 
-use crate::rows::Rows;
-
 /// How many items should we try to batch for?
 const BATCH_SIZE: usize = 100;
 
@@ -17,19 +15,19 @@ const MAX_OUTSTANDING_ITEMS: usize = 1000;
 const FLUSH_INTERVAL: Duration = Duration::from_secs(5);
 
 pub struct WriterThread {
-    receiver: Receiver<Rows>,
-    sender: Sender<Rows>,
+    receiver: Receiver<()>,
+    sender: Sender<()>,
 }
 
 impl WriterThread {
-    pub fn send(&self, item: Rows) -> Result<()> {
+    pub fn send(&self, item: ()) -> Result<()> {
         self.sender.try_send(item)?;
         Ok(())
     }
 }
 
 /// Flush a batch.  Handles failures by logging.
-async fn flush_batch(batch: &mut Vec<Rows>) {
+async fn flush_batch(batch: &mut Vec<()>) {
     if batch.is_empty() {
         return;
     }
@@ -39,7 +37,7 @@ async fn flush_batch(batch: &mut Vec<Rows>) {
 }
 
 async fn writer_task_fallible(writer: Arc<WriterThread>) -> Result<()> {
-    let mut batch: Vec<Rows> = vec![];
+    let mut batch: Vec<()> = vec![];
     let mut flush_tick = tokio::time::interval(FLUSH_INTERVAL);
 
     loop {

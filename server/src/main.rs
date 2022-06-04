@@ -1,5 +1,5 @@
 mod api;
-mod rows;
+mod anonymization;
 mod writer;
 
 use std::str::FromStr;
