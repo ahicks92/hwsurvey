@@ -21,6 +21,10 @@ services:
     - "10000:10000"
     volumes:
     - "backend-target-dir:/backend/target"
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres/postgres
+      RUST_LOG: info
+    stop_signal: SIGKILL
 
 volumes:
   backend-target-dir: {}

@@ -4,6 +4,7 @@ mod writer;
 
 use std::str::FromStr;
 
+use anyhow::Result;
 use clap::Parser;
 use warp::Filter;
 
@@ -19,13 +20,17 @@ struct Args {
 }
 
 #[tokio::main(flavor = "multi_thread")]
-async fn main() {
+async fn main() -> Result<()> {
     env_logger::init();
 
     let args = Args::parse();
 
     let ip: std::net::IpAddr =
         std::net::IpAddr::from_str(&args.address).expect("Could not parse IP address");
+
+    let dburl = std::env::var("DATABASE_URL").expect("DATABASE_URL env var must be set");
+    let db = tokio_postgres::connect(&dburl, tokio_postgres::tls::NoTls).await?;
+    log::info!("Connected to database");
 
     let writer = writer::spawn();
 
@@ -36,4 +41,5 @@ async fn main() {
         .then(move |b| api::report_v1::report_v1(writer.clone(), b));
 
     warp::serve(report).run((ip, args.port)).await;
+    Ok(())
 }
