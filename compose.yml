@@ -1,0 +1,27 @@
+services:
+  postgres:
+    build:
+      context: .
+      dockerfile: ./dockerfiles/postgres_hll
+    ports:
+    - "5432:5432"
+    volumes:
+    - db:/database-data
+    environment:
+      PGDATA: /data
+      POSTGRES_PASSWORD: postgres
+
+
+  backend:
+    build:
+      context: .
+      dockerfile: ./dockerfiles/backend
+    command: 'cargo run -- --address 0.0.0.0 --port 10000'
+    ports:
+    - "10000:10000"
+    volumes:
+    - "backend-target-dir:/backend/target"
+
+volumes:
+  backend-target-dir: {}
+  db: {}
