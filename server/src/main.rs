@@ -19,6 +19,8 @@ struct Args {
     port: u16,
 }
 
+refinery::embed_migrations!();
+
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<()> {
     env_logger::init();
@@ -29,8 +31,13 @@ async fn main() -> Result<()> {
         std::net::IpAddr::from_str(&args.address).expect("Could not parse IP address");
 
     let dburl = std::env::var("DATABASE_URL").expect("DATABASE_URL env var must be set");
-    let db = tokio_postgres::connect(&dburl, tokio_postgres::tls::NoTls).await?;
-    log::info!("Connected to database");
+    let (mut db_cli, db_conn) = tokio_postgres::connect(&dburl, tokio_postgres::tls::NoTls).await?;
+    tokio::task::spawn(async move {
+        db_conn.await.expect("Fatal database error");
+    });
+
+    log::info!("Connected to database. Applying migrations...");
+    migrations::runner().run_async(&mut db_cli).await?;
 
     let writer = writer::spawn();
 
