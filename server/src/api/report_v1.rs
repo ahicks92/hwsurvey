@@ -8,24 +8,20 @@ use hwsurvey_payloads::PayloadV1;
 
 use crate::writer::WriterThread;
 
-/// Sentinel value for when we can't extract an IP, which should almost never happen.
-pub const UNKNOWN_IP_STRING: &str = "unknown_ip";
-
-/// The unknown country from Cloudflare's docs:
-/// https://developers.cloudflare.com/fundamentals/get-started/reference/http-request-headers/
-///
-/// We fill this in automatically for local development or if the header is missing.
-pub const UNKNOWN_COUNTRY: [char; 2] = ['X', 'X'];
-
 pub async fn report_v1_fallible(
     writer: &WriterThread,
-    _ip: Option<String>,
-    _country: Option<String>,
+    ip: Option<String>,
+    country: Option<String>,
     body: Bytes,
 ) -> Result<()> {
     let payload: PayloadV1 = serde_json::from_slice(&body[..])?;
+    let work = crate::writer::WorkItem {
+        ip,
+        country,
+        payload,
+    };
 
-    writer.send(payload)?;
+    writer.send(work)?;
     Ok(())
 }
 

@@ -16,20 +16,27 @@ const MAX_OUTSTANDING_ITEMS: usize = 1000;
 /// After this time, flush the batch even if the batch doesn't have much data in it.
 const FLUSH_INTERVAL: Duration = Duration::from_secs(5);
 
+#[derive(Debug)]
+pub struct WorkItem {
+    pub country: Option<String>,
+    pub ip: Option<String>,
+    pub payload: PayloadV1,
+}
+
 pub struct WriterThread {
-    receiver: Receiver<PayloadV1>,
-    sender: Sender<PayloadV1>,
+    receiver: Receiver<WorkItem>,
+    sender: Sender<WorkItem>,
 }
 
 impl WriterThread {
-    pub fn send(&self, item: PayloadV1) -> Result<()> {
+    pub fn send(&self, item: WorkItem) -> Result<()> {
         self.sender.try_send(item)?;
         Ok(())
     }
 }
 
 /// Flush a batch.  Handles failures by logging.
-async fn flush_batch(batch: &mut Vec<PayloadV1>) {
+async fn flush_batch(batch: &mut Vec<WorkItem>) {
     if batch.is_empty() {
         return;
     }
@@ -39,7 +46,7 @@ async fn flush_batch(batch: &mut Vec<PayloadV1>) {
 }
 
 async fn writer_task_fallible(writer: Arc<WriterThread>) -> Result<()> {
-    let mut batch: Vec<PayloadV1> = vec![];
+    let mut batch: Vec<WorkItem> = vec![];
     let mut flush_tick = tokio::time::interval(FLUSH_INTERVAL);
 
     loop {
