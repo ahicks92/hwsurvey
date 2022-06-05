@@ -55,6 +55,29 @@ CREATE INDEX cpu_capabilities_os ON cpu_capabilities(os);
 CREATE INDEX cpu_capabilities_application ON cpu_capabilities(application);
 CREATE INDEX cpu_capabilities_architecture ON cpu_capabilities(architecture);
 
+
+CREATE TABLE cpu_caches(
+    application UUID REFERENCES application(id) NOT NULL,
+    day TIMESTAMP WITH TIME ZONE NOT NULL,
+
+    l1i INTEGER NOT NULL,
+    l1d INTEGER NOT NULL,
+    l1u INTEGER NOT NULL,
+    l2i INTEGER NOT NULL,
+    l2d INTEGER NOT NULL,
+    l2u INTEGER NOT NULL,
+    l3i INTEGER NOT NULL,
+    l3d INTEGER NOT NULL,
+    l3u INTEGER NOT NULL,
+
+    users_by_id hll,
+    users_by_ip hll,
+
+    UNIQUE(application, day, l1i, l1d, l1u, l2i, l2d, l2u, l3i, l3d, l3u)
+);
+
+CREATE INDEX cpu_caches_day ON cpu_caches(day);
+
 -- This table tracks the country as reported from Cloudflare.  See
 -- https://developers.cloudflare.com/fundamentals/get-started/reference/http-request-headers/
 CREATE TABLE cf_country(
