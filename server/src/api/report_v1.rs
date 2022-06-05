@@ -9,9 +9,9 @@ use hwsurvey_payloads::PayloadV1;
 use crate::writer::WriterThread;
 
 pub async fn report_v1_fallible(writer: &WriterThread, body: Bytes) -> Result<()> {
-    let _payload: PayloadV1 = serde_json::from_slice(&body[..])?;
+    let payload: PayloadV1 = serde_json::from_slice(&body[..])?;
 
-    writer.send(())?;
+    writer.send(payload)?;
     Ok(())
 }
 

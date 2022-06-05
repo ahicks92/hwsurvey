@@ -5,6 +5,8 @@ use anyhow::Result;
 use async_channel::{bounded, Receiver, Sender};
 use tokio::select;
 
+use hwsurvey_payloads::PayloadV1;
+
 /// How many items should we try to batch for?
 const BATCH_SIZE: usize = 100;
 
@@ -15,19 +17,19 @@ const MAX_OUTSTANDING_ITEMS: usize = 1000;
 const FLUSH_INTERVAL: Duration = Duration::from_secs(5);
 
 pub struct WriterThread {
-    receiver: Receiver<()>,
-    sender: Sender<()>,
+    receiver: Receiver<PayloadV1>,
+    sender: Sender<PayloadV1>,
 }
 
 impl WriterThread {
-    pub fn send(&self, item: ()) -> Result<()> {
+    pub fn send(&self, item: PayloadV1) -> Result<()> {
         self.sender.try_send(item)?;
         Ok(())
     }
 }
 
 /// Flush a batch.  Handles failures by logging.
-async fn flush_batch(batch: &mut Vec<()>) {
+async fn flush_batch(batch: &mut Vec<PayloadV1>) {
     if batch.is_empty() {
         return;
     }
@@ -37,7 +39,7 @@ async fn flush_batch(batch: &mut Vec<()>) {
 }
 
 async fn writer_task_fallible(writer: Arc<WriterThread>) -> Result<()> {
-    let mut batch: Vec<()> = vec![];
+    let mut batch: Vec<PayloadV1> = vec![];
     let mut flush_tick = tokio::time::interval(FLUSH_INTERVAL);
 
     loop {
