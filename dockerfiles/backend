@@ -1,7 +1,7 @@
 FROM rust:latest
 RUN apt update
 RUN apt install -y gcc g++ make cmake git
-# This forces the Cargo index to update.
-RUN cargo install lazy-static || :
+# This forces the Cargo index to update, as well as getting us refinery for our migrations.
+RUN cargo install refinery_cli
 add . /backend/
-WORKDIR backend/server
+WORKDIR /backend

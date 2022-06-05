@@ -2,7 +2,7 @@ CREATE EXTENSION hll;
 
 CREATE TABLE application(
     id UUID PRIMARY KEY,
-    name TEXT UNIQUe NOT NULL
+    name TEXT UNIQUE NOT NULL
 );
 
 CREATE TABLE cpu_manufacturer(
@@ -43,7 +43,11 @@ CREATE TABLE cpu_capabilities(
     FOREIGN KEY(os) REFERENCES os(id),
     FOREIGN KEY(cpu_manufacturer) REFERENCES cpu_manufacturer(id),
     FOREIGN KEY (application) REFERENCES application(id),
-    FOREIGN KEY (architecture) REFERENCES cpu_architecture(id)
+    FOREIGN KEY (architecture) REFERENCES cpu_architecture(id),
+
+    -- Enables insert or update to insert into the hlls.
+    UNIQUE(day, application, cpu_manufacturer, os, architecture, x86_sse2, x86_sse3, x86_ssse3, x86_sse4_1,
+        x86_avx, x86_avx2, x86_avx512f)
 );
 
 CREATE INDEX cpu_capabilities_day ON cpu_capabilities(day);
@@ -59,7 +63,9 @@ CREATE TABLE cf_country(
     country TEXT NOT NULL,
 
     users_by_id hll NOT NULL,
-    users_by_ip hll NOT NULL
+    users_by_ip hll NOT NULL,
+
+    UNIQUE(application, day, country)
 );
 
 CREATE INDEX cf_country_day ON cf_country(day);
