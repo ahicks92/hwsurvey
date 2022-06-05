@@ -78,6 +78,20 @@ CREATE TABLE cpu_caches(
 
 CREATE INDEX cpu_caches_day ON cpu_caches(day);
 
+CREATE TABLE memory(
+    application UUID NOT NULL REFERENCES application(id),
+    day TIMESTAMP WITH TIME ZONE NOT NULL,
+    total_memory INTEGER NOT NULL,
+
+    users_by_id hll,
+    users_by_ip hll,
+
+    UNIQUE(application, day, total_memory)
+);
+
+CREATE INDEX memory_application ON memory(application);
+CREATE INDEX memory_day ON memory(day);
+
 -- This table tracks the country as reported from Cloudflare.  See
 -- https://developers.cloudflare.com/fundamentals/get-started/reference/http-request-headers/
 CREATE TABLE cf_country(
