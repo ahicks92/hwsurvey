@@ -29,7 +29,8 @@ async fn main() -> Result<()> {
     let ip: std::net::IpAddr =
         std::net::IpAddr::from_str(&args.address).expect("Could not parse IP address");
 
-    let writer = writer::spawn();
+    let dburl = std::env::var("DATABASE_URL").expect("DATABASE_URL env var must be set");
+    let writer = writer::spawn(&dburl).await?;
 
     let cf_ip = warp::header("CF-Connecting-IP").map(|x: String| Some(x));
     let remote_ip = warp::filters::addr::remote().map(|x: Option<std::net::SocketAddr>| {

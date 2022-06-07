@@ -112,14 +112,18 @@ INSERT INTO application(id, name) VALUES
     ('09bc8ff8-e452-11ec-be06-00d8612ce6ed', 'hwsurvey_voyager');
 
 INSERT INTO cpu_manufacturer(id, name) VALUES
+    -- Unknown is a special name; we use it when we don't have anything else.
+    ('8f972a0c-e68c-11ec-b046-00d8612ce6ed', 'unknown'),
     ('7741323e-e454-11ec-8fa5-00d8612ce6ed', 'intel'),
     ('7b447b70-e454-11ec-b720-00d8612ce6ed', 'apple');
 
 INSERT INTO os(id, name) VALUES
+    ('832060f4-e68c-11ec-9a85-00d8612ce6ed', 'unknown'),
     ('81f9efea-e454-11ec-be9f-00d8612ce6ed', 'windows'),
     ('8552a506-e454-11ec-a0c3-00d8612ce6ed', 'linux'),
     ('88f282bc-e454-11ec-b882-00d8612ce6ed', 'macos');
 
 INSERT into cpu_architecture(id, name) VALUES
+    ('24e7984e-e68d-11ec-8e48-00d8612ce6ed', 'unknown'),
     ('761f46a4-e457-11ec-9b5d-00d8612ce6ed', 'aarch64'),
     ('90131126-e457-11ec-9405-00d8612ce6ed', 'x86');

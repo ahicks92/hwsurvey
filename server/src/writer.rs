@@ -34,7 +34,7 @@ const MAX_OUTSTANDING_ITEMS: usize = 1000;
 const FLUSH_INTERVAL: Duration = Duration::from_secs(5);
 
 /// A cache of statements.
-type Cache = Mutex<HashMap<&'static str, Arc<Statement>>>;
+type StatementCache = Mutex<HashMap<&'static str, Arc<Statement>>>;
 
 #[derive(Debug)]
 pub struct WorkItem {
@@ -50,6 +50,79 @@ struct Context {
     os: uuid::Uuid,
     architecture: uuid::Uuid,
     cpu_manufacturer: Uuid,
+}
+
+/// Contains caches mapping various strings to the uuids they go with from the db.  Loaded at startup.
+#[derive(Debug)]
+struct UuidCache {
+    application: HashMap<String, uuid::Uuid>,
+    os: HashMap<String, uuid::Uuid>,
+    cpu_manufacturer: HashMap<String, Uuid>,
+    architecture: HashMap<String, Uuid>,
+}
+
+impl UuidCache {
+    async fn load(client: &Client) -> Result<UuidCache> {
+        let mut os = Default::default();
+        let mut cpu_manufacturer = Default::default();
+        let mut architecture = Default::default();
+        let mut application = Default::default();
+
+        let tables: &mut [(&str, &mut HashMap<String, Uuid>)] = &mut [
+            ("os", &mut os),
+            ("cpu_manufacturer", &mut cpu_manufacturer),
+            ("cpu_architecture", &mut architecture),
+            ("application", &mut application),
+        ];
+
+        for (name, dest) in tables.iter_mut() {
+            let query = format!("SELECT id, name FROM {}", name);
+            let rows = client.query(&query, &[]).await?;
+            for r in rows {
+                dest.insert(r.get("name"), r.get("id"));
+            }
+        }
+
+        Ok(UuidCache {
+            os,
+            cpu_manufacturer,
+            architecture,
+            application,
+        })
+    }
+
+    /// Get the OS, returning the uuid for the unknown value if this OS is unknown to us.
+    fn get_os(&self, os: &str) -> Uuid {
+        self.os
+            .get(os)
+            .unwrap_or_else(|| self.os.get("unknown").expect("unknown is always present"))
+            .clone()
+    }
+
+    /// Get the CPU manufacturer, returning the uuid for the unknown value if it is unknown to us.
+    fn get_cpu_manufacturer(&self, manufacturer: &str) -> Uuid {
+        self.cpu_manufacturer
+            .get(manufacturer)
+            .unwrap_or_else(|| self.os.get("unknown").expect("unknown is always present"))
+            .clone()
+    }
+
+    fn get_architecture(&self, arch: &str) -> Uuid {
+        self.architecture
+            .get(arch)
+            .unwrap_or_else(|| self.os.get("unknown").expect("unknown is always present"))
+            .clone()
+    }
+
+    /// Get the application.
+    ///
+    /// Returns None if the application isn't present, since we're not willing to collect for unknown applications.
+    fn get_application(&self, app: &str) -> Option<Uuid> {
+        self.application
+            .get(app)
+            .or_else(|| self.os.get("unknown"))
+            .cloned()
+    }
 }
 
 pub struct WriterThread {
@@ -105,7 +178,7 @@ ON CONFLICT UPDATE SET
 /// statements and is keyed by table name.
 async fn run_query(
     client: &Client,
-    cache: &Cache,
+    cache: &StatementCache,
     table_name: &'static str,
     user_id: &str,
     user_ip: &str,
@@ -136,7 +209,7 @@ async fn run_query(
 
 async fn write_cpu_capabilities(
     client: &Client,
-    cache: &Cache,
+    cache: &StatementCache,
     context: &Context,
     work: &WorkItem,
 ) -> Result<()> {
@@ -169,7 +242,7 @@ async fn write_cpu_capabilities(
 
 async fn write_cpu_caches(
     client: &Client,
-    cache: &Cache,
+    cache: &StatementCache,
     context: &Context,
     work: &WorkItem,
 ) -> Result<()> {
@@ -206,7 +279,7 @@ async fn write_cpu_caches(
 
 async fn write_memory(
     client: &Client,
-    cache: &Cache,
+    cache: &StatementCache,
     context: &Context,
     work: &WorkItem,
 ) -> Result<()> {
@@ -234,7 +307,7 @@ async fn write_memory(
 
 async fn write_cf_country(
     client: &Client,
-    cache: &Cache,
+    cache: &StatementCache,
     context: &Context,
     work: &WorkItem,
 ) -> Result<()> {
@@ -264,7 +337,12 @@ async fn write_cf_country(
 /// Write a work item.
 ///
 /// Logs on failure, and writes what it can.
-async fn write_work_item(client: &Client, cache: &Cache, context: &Context, work: &WorkItem) {
+async fn write_work_item(
+    client: &Client,
+    cache: &StatementCache,
+    context: &Context,
+    work: &WorkItem,
+) {
     let (caches, caps, mem, country) = tokio::join!(
         write_cpu_caches(client, cache, context, work),
         write_cpu_capabilities(client, cache, context, work),
@@ -315,7 +393,11 @@ async fn writer_task_fallible(writer: Arc<WriterThread>) -> Result<()> {
     }
 }
 
-async fn writer_task(writer: Arc<WriterThread>) {
+async fn writer_task(
+    writer: Arc<WriterThread>,
+    client: Client,
+    connection_task: tokio::task::JoinHandle<std::result::Result<(), tokio_postgres::Error>>,
+) {
     log::info!("Writer running");
 
     writer_task_fallible(writer)
@@ -323,13 +405,19 @@ async fn writer_task(writer: Arc<WriterThread>) {
         .expect("The writer crashed");
 }
 
-pub fn spawn() -> Arc<WriterThread> {
+pub async fn spawn(db_url: &str) -> Result<Arc<WriterThread>> {
+    let (client, connection) = tokio_postgres::connect(db_url, tokio_postgres::NoTls).await?;
+    let connection_task = tokio::spawn(connection);
+
+    let uuid_cache = UuidCache::load(&client).await?;
+    log::info!("Uuid cache is: {:?}", uuid_cache);
+
     let (sender, receiver) = bounded(MAX_OUTSTANDING_ITEMS);
     let thread = Arc::new(WriterThread { sender, receiver });
 
     let thread_cloned = thread.clone();
 
-    tokio::spawn(writer_task(thread_cloned));
+    tokio::spawn(writer_task(thread_cloned, client, connection_task));
 
-    thread
+    Ok(thread)
 }
