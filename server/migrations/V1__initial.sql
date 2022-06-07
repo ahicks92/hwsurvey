@@ -23,22 +23,22 @@ CREATE TABLE cpu_architecture(
 CREATE TABLE cpu_capabilities(
     -- Time, truncated to day in utc.
     day TIMESTAMP WITH TIME ZONE NOT NULL,
+    application UUID NOT NULL,
     os UUID NOT NULL,
     cpu_manufacturer UUID NOT NULL,
-    application UUID NOT NULL,
     architecture UUID NOT NULL,
 
     x86_sse2 BOOLEAN NOT NULL,
     x86_sse3 BOOLEAN NOT NULL,
     x86_ssse3 BOOLEAN NOT NULL,
     x86_sse4_1 BOOLEAN NOT NULL,
+    x86_fma3 BOOLEAN NOT NULL,
     x86_avx BOOLEAN NOT NULL,
     x86_avx2 BOOLEAN NOT NULL,
-    x86_fma3 BOOLEAN NOT NULL,
     x86_avx512f BOOLEAN NOT NULL,
 
-    users_by_id hll,
-    users_by_ip hll,
+    users_by_id hll NOT NULL,
+    users_by_ip hll NOT NULL,
 
     FOREIGN KEY(os) REFERENCES os(id),
     FOREIGN KEY(cpu_manufacturer) REFERENCES cpu_manufacturer(id),
@@ -55,10 +55,9 @@ CREATE INDEX cpu_capabilities_os ON cpu_capabilities(os);
 CREATE INDEX cpu_capabilities_application ON cpu_capabilities(application);
 CREATE INDEX cpu_capabilities_architecture ON cpu_capabilities(architecture);
 
-
 CREATE TABLE cpu_caches(
+        day TIMESTAMP WITH TIME ZONE NOT NULL,
     application UUID REFERENCES application(id) NOT NULL,
-    day TIMESTAMP WITH TIME ZONE NOT NULL,
 
     l1i INTEGER NOT NULL,
     l1d INTEGER NOT NULL,
