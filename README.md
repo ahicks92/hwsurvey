@@ -20,6 +20,7 @@ for now).
 
 We collect the following (see below w.r.t. anonymization and preventing fingerprinting):
 
+- Application which sent the data.
 - Os, currently limited to "kind", e.g. windows, but not windows 10.
 - CPU architecture: aarch, x86, etc.
 - CPU features: sse/sse2/avx/etc.
