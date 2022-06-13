@@ -19,6 +19,7 @@ pub async fn report_v1_fallible(
         ip,
         country,
         payload,
+        received_at: chrono::Utc::now(),
     };
 
     writer.send(work)?;

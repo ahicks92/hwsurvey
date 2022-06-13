@@ -5,8 +5,8 @@ services:
       dockerfile: ./dockerfiles/postgres_hll
     ports:
     - "5432:5432"
-    volumes:
-    - db:/database-data
+    #volumes:
+    #- db:/database-data
     environment:
       PGDATA: /data
       POSTGRES_PASSWORD: postgres
@@ -28,4 +28,4 @@ services:
 
 volumes:
   backend-target-dir: {}
-  db: {}
+#  db: {}

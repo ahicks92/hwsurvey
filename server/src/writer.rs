@@ -1,15 +1,17 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Duration;
 
 use anyhow::Result;
 use async_channel::{bounded, Receiver, Sender};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration as CDuration, DurationRound, Utc};
 use tokio::select;
 use tokio_postgres::{Client, Statement};
 use uuid::Uuid;
 
 use hwsurvey_payloads::PayloadV1;
+
 const CPU_CAPABILITIES_TABLE: &str = "cpu_capabilities";
 const CPU_CACHES_TABLE: &str = "cpu_caches";
 const MEMORY_TABLE: &str = "memory";
@@ -24,14 +26,8 @@ const UNKNOWN_IP: &str = "123.123.123.123";
 /// https://developers.cloudflare.com/fundamentals/get-started/reference/http-request-headers/
 const UNKNOWN_COUNTRY: &str = "XX";
 
-/// How many items should we try to batch for?
-const BATCH_SIZE: usize = 100;
-
 /// How many items should we allow to be pending before we start erroring?
 const MAX_OUTSTANDING_ITEMS: usize = 1000;
-
-/// After this time, flush the batch even if the batch doesn't have much data in it.
-const FLUSH_INTERVAL: Duration = Duration::from_secs(5);
 
 /// A cache of statements.
 type StatementCache = Mutex<HashMap<&'static str, Arc<Statement>>>;
@@ -41,6 +37,7 @@ pub struct WorkItem {
     pub country: Option<String>,
     pub ip: Option<String>,
     pub payload: PayloadV1,
+    pub received_at: chrono::DateTime<chrono::Utc>,
 }
 
 /// Groups a bunch of parameters all our writing functions need.
@@ -128,6 +125,7 @@ impl UuidCache {
 pub struct WriterThread {
     receiver: Receiver<WorkItem>,
     sender: Sender<WorkItem>,
+    uuid_cache: UuidCache,
 }
 
 impl WriterThread {
@@ -150,7 +148,7 @@ fn build_query_string(table: &str, factors: &[&str]) -> String {
     let all_cols = factors
         .iter()
         .copied()
-        .chain((&["user_id", "user_ip"]).iter().copied());
+        .chain((&["users_by_id", "users_by_ip"]).iter().copied());
 
     let all_cols = itertools::join(all_cols, ",");
 
@@ -161,12 +159,12 @@ fn build_query_string(table: &str, factors: &[&str]) -> String {
 
     format!(
         r#"
-INSERT INTO {table}({all_cols}) VALUES(
+INSERT INTO {table} as t({all_cols}) VALUES
 ({factor_params}, hll_empty() || hll_hash_text({user_id_param}), hll_empty() || hll_hash_text({user_ip_param}))
-ON CONFLICT UPDATE SET
-(user_id, user_ip) = (
-    user_id || hll_hash_text({user_id_param}),
-    user_ip || hll_hash_text({user_ip_param})
+ON CONFLICT ON CONSTRAINT {table}_upsert_constraint DO UPDATE SET
+(users_by_id, users_by_ip) = (
+    t.users_by_id || hll_hash_text({user_id_param}),
+    t.users_by_ip || hll_hash_text({user_ip_param})
 )"#,
     )
 }
@@ -184,16 +182,19 @@ async fn run_query(
     user_ip: &str,
     factors: &[(&str, &(dyn tokio_postgres::types::ToSql + Sync))],
 ) -> Result<()> {
-    let stmt = {
-        if let Some(s) = cache.lock().unwrap().get(table_name) {
-            s.clone()
+    let stmt: Arc<tokio_postgres::Statement> = {
+        // be careful here: without the let binding, the mutex lock in the if branch lasts for the whole outer
+        // expression.
+        if let Some(s) = {
+            let guard = cache.lock().unwrap();
+            let res: Option<Arc<Statement>> = guard.get(table_name).cloned();
+            res
+        } {
+            s
         } else {
             let fact_names: smallvec::SmallVec<[&str; 64]> = factors.iter().map(|x| x.0).collect();
-            let stmt = Arc::new(
-                client
-                    .prepare(&build_query_string(table_name, &fact_names[..]))
-                    .await?,
-            );
+            let qstring = build_query_string(table_name, &fact_names[..]);
+            let stmt = Arc::new(client.prepare(&qstring).await?);
             cache.lock().unwrap().insert(table_name, stmt.clone());
             stmt
         }
@@ -292,7 +293,7 @@ async fn write_memory(
     run_query(
         client,
         cache,
-        CPU_CACHES_TABLE,
+        MEMORY_TABLE,
         &work.payload.machine_id,
         work.ip.as_deref().unwrap_or(UNKNOWN_IP),
         &[
@@ -334,60 +335,81 @@ async fn write_cf_country(
     Ok(())
 }
 
-/// Write a work item.
-///
-/// Logs on failure, and writes what it can.
 async fn write_work_item(
+    writer: &WriterThread,
     client: &Client,
     cache: &StatementCache,
-    context: &Context,
     work: &WorkItem,
-) {
+) -> Result<()> {
+    let uc = &writer.uuid_cache;
+
+    let application = uc
+        .get_application(&work.payload.application_name)
+        .ok_or_else(|| anyhow::anyhow!("Unable to find UUID for application"))?;
+    let os = uc.get_os(&work.payload.os);
+    let architecture = uc.get_architecture(&work.payload.simdsp.cpu_architecture);
+    let cpu_manufacturer = uc.get_cpu_manufacturer(&work.payload.simdsp.cpu_manufacturer);
+    let day = work.received_at.duration_trunc(CDuration::days(1))?;
+
+    let context = Context {
+        application,
+        os,
+        architecture,
+        cpu_manufacturer,
+        day,
+    };
+
     let (caches, caps, mem, country) = tokio::join!(
-        write_cpu_caches(client, cache, context, work),
-        write_cpu_capabilities(client, cache, context, work),
-        write_memory(client, cache, context, work),
-        write_cf_country(client, cache, context, work)
+        write_cpu_caches(client, cache, &context, work),
+        write_cpu_capabilities(client, cache, &context, work),
+        write_memory(client, cache, &context, work),
+        write_cf_country(client, cache, &context, work)
     );
 
-    if let Err(e) = caps {
+    if let Err(ref e) = caps {
         log::error!("Unable to write CPU capabilities: {:?}", e);
     }
-    if let Err(e) = caches {
+    if let Err(ref e) = caches {
         log::error!("Unable to write cache info: {:?}", e);
     }
-    if let Err(e) = mem {
+    if let Err(ref e) = mem {
         log::error!("Unable to write memory info: {:?}", e);
     }
-    if let Err(e) = country {
+    if let Err(ref e) = country {
         log::error!("Unable to write country info: {:?}", e);
     }
+
+    // Report the first of these which failed as the error.
+    caps?;
+    caches?;
+    mem?;
+    country?;
+    Ok(())
 }
 
-/// Flush a batch.  Handles failures by logging.
-async fn flush_batch(batch: &mut Vec<WorkItem>) {
-    if batch.is_empty() {
-        return;
-    }
-
-    log::info!("Would write: {:?}", batch);
-    batch.clear();
-}
-
-async fn writer_task_fallible(writer: Arc<WriterThread>) -> Result<()> {
-    let mut batch: Vec<WorkItem> = vec![];
-    let mut flush_tick = tokio::time::interval(FLUSH_INTERVAL);
+async fn writer_task_fallible(
+    writer: Arc<WriterThread>,
+    client: Client,
+    connection_task: tokio::task::JoinHandle<std::result::Result<(), tokio_postgres::Error>>,
+) -> Result<()> {
+    let mut statement_cache = Default::default();
+    tokio::pin!(connection_task);
 
     loop {
         select! {
             Ok(r) = writer.receiver.recv() => {
-                batch.push(r);
-                if batch.len() > BATCH_SIZE {
-                    flush_batch(&mut batch).await;
+                if let Err(e) = write_work_item(&*writer, &client, &mut statement_cache, &r).await {
+                    only_every::only_every!(
+                        Duration::from_secs(30),
+                        log::warn!("Unable to write work item because {:?}", e)
+                    );
                 }
             },
-            _ = flush_tick.tick() => {
-                flush_batch(&mut batch).await;
+            x = &mut connection_task => {
+                match x? {
+                    Ok(_) => anyhow::bail!("The database client exited without error, but should have remained up forever"),
+                    Err(e) => anyhow::bail!("Database error! P{:?}", e),
+                }
             }
         }
     }
@@ -400,7 +422,9 @@ async fn writer_task(
 ) {
     log::info!("Writer running");
 
-    writer_task_fallible(writer)
+    // If the writer fails, crash and come back up.  This is Rust, we'll be back in a few seconds or less, and we don't
+    // need 100% uptime.  Some thrashing is ok.
+    writer_task_fallible(writer, client, connection_task)
         .await
         .expect("The writer crashed");
 }
@@ -413,7 +437,11 @@ pub async fn spawn(db_url: &str) -> Result<Arc<WriterThread>> {
     log::info!("Uuid cache is: {:?}", uuid_cache);
 
     let (sender, receiver) = bounded(MAX_OUTSTANDING_ITEMS);
-    let thread = Arc::new(WriterThread { sender, receiver });
+    let thread = Arc::new(WriterThread {
+        sender,
+        receiver,
+        uuid_cache,
+    });
 
     let thread_cloned = thread.clone();
 

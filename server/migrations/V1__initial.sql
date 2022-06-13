@@ -46,7 +46,7 @@ CREATE TABLE cpu_capabilities(
     FOREIGN KEY (architecture) REFERENCES cpu_architecture(id),
 
     -- Enables insert or update to insert into the hlls.
-    UNIQUE(day, application, cpu_manufacturer, os, architecture, x86_sse2, x86_sse3, x86_ssse3, x86_sse4_1,
+    CONSTRAINT cpu_capabilities_upsert_constraint UNIQUE(day, application, cpu_manufacturer, os, architecture, x86_sse2, x86_sse3, x86_ssse3, x86_sse4_1,
         x86_avx, x86_avx2, x86_avx512f)
 );
 
@@ -59,20 +59,20 @@ CREATE TABLE cpu_caches(
         day TIMESTAMP WITH TIME ZONE NOT NULL,
     application UUID REFERENCES application(id) NOT NULL,
 
-    l1i INTEGER NOT NULL,
-    l1d INTEGER NOT NULL,
-    l1u INTEGER NOT NULL,
-    l2i INTEGER NOT NULL,
-    l2d INTEGER NOT NULL,
-    l2u INTEGER NOT NULL,
-    l3i INTEGER NOT NULL,
-    l3d INTEGER NOT NULL,
-    l3u INTEGER NOT NULL,
+    l1i BIGINT NOT NULL,
+    l1d BIGINT NOT NULL,
+    l1u BIGINT NOT NULL,
+    l2i BIGINT NOT NULL,
+    l2d BIGINT NOT NULL,
+    l2u BIGINT NOT NULL,
+    l3i BIGINT NOT NULL,
+    l3d BIGINT NOT NULL,
+    l3u BIGINT NOT NULL,
 
     users_by_id hll,
     users_by_ip hll,
 
-    UNIQUE(application, day, l1i, l1d, l1u, l2i, l2d, l2u, l3i, l3d, l3u)
+    CONSTRAINT cpu_caches_upsert_constraint UNIQUE(application, day, l1i, l1d, l1u, l2i, l2d, l2u, l3i, l3d, l3u)
 );
 
 CREATE INDEX cpu_caches_day ON cpu_caches(day);
@@ -80,12 +80,12 @@ CREATE INDEX cpu_caches_day ON cpu_caches(day);
 CREATE TABLE memory(
     application UUID NOT NULL REFERENCES application(id),
     day TIMESTAMP WITH TIME ZONE NOT NULL,
-    total_memory INTEGER NOT NULL,
+    total_memory BIGINT NOT NULL,
 
     users_by_id hll,
     users_by_ip hll,
 
-    UNIQUE(application, day, total_memory)
+    CONSTRAINT memory_upsert_constraint UNIQUE(application, day, total_memory)
 );
 
 CREATE INDEX memory_application ON memory(application);
@@ -101,7 +101,7 @@ CREATE TABLE cf_country(
     users_by_id hll NOT NULL,
     users_by_ip hll NOT NULL,
 
-    UNIQUE(application, day, country)
+    CONSTRAINT cf_country_upsert_constraint UNIQUE(application, day, country)
 );
 
 CREATE INDEX cf_country_day ON cf_country(day);
