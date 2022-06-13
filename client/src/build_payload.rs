@@ -25,7 +25,7 @@ fn double_hash(input: &str) -> String {
     let res = hasher.finalize();
     hex::encode(&res[..])
 }
-pub fn build_payload(application_name: String) -> Result<PayloadV1> {
+pub fn build_payload() -> Result<PayloadV1> {
     let simdsp = hwsurvey_simdsp_bridger::get_system_info()?;
 
     let sysinfo = System::new_with_specifics(sysinfo::RefreshKind::new().with_memory().with_cpu());
@@ -58,11 +58,10 @@ pub fn build_payload(application_name: String) -> Result<PayloadV1> {
         memory,
         os,
         machine_id,
-        application_name,
     })
 }
 
 #[test]
 fn test_payload_building() {
-    build_payload("test_app".to_string()).expect("Should be able to build the payload");
+    build_payload().expect("Should be able to build the payload");
 }

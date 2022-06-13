@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
@@ -38,6 +38,7 @@ pub struct WorkItem {
     pub ip: Option<String>,
     pub payload: PayloadV1,
     pub received_at: chrono::DateTime<chrono::Utc>,
+    pub token: Uuid,
 }
 
 /// Groups a bunch of parameters all our writing functions need.
@@ -52,7 +53,7 @@ struct Context {
 /// Contains caches mapping various strings to the uuids they go with from the db.  Loaded at startup.
 #[derive(Debug)]
 struct UuidCache {
-    application: HashMap<String, uuid::Uuid>,
+    tokens: HashSet<Uuid>,
     os: HashMap<String, uuid::Uuid>,
     cpu_manufacturer: HashMap<String, Uuid>,
     architecture: HashMap<String, Uuid>,
@@ -63,13 +64,12 @@ impl UuidCache {
         let mut os = Default::default();
         let mut cpu_manufacturer = Default::default();
         let mut architecture = Default::default();
-        let mut application = Default::default();
+        let mut tokens: HashSet<Uuid> = Default::default();
 
         let tables: &mut [(&str, &mut HashMap<String, Uuid>)] = &mut [
             ("os", &mut os),
             ("cpu_manufacturer", &mut cpu_manufacturer),
             ("cpu_architecture", &mut architecture),
-            ("application", &mut application),
         ];
 
         for (name, dest) in tables.iter_mut() {
@@ -80,11 +80,16 @@ impl UuidCache {
             }
         }
 
+        let rows = client.query("SELECT id FROM application", &[]).await?;
+        for r in rows {
+            tokens.insert(r.get("id"));
+        }
+
         Ok(UuidCache {
+            tokens,
             os,
             cpu_manufacturer,
             architecture,
-            application,
         })
     }
 
@@ -111,14 +116,8 @@ impl UuidCache {
             .clone()
     }
 
-    /// Get the application.
-    ///
-    /// Returns None if the application isn't present, since we're not willing to collect for unknown applications.
-    fn get_application(&self, app: &str) -> Option<Uuid> {
-        self.application
-            .get(app)
-            .or_else(|| self.os.get("unknown"))
-            .cloned()
+    fn has_application(&self, uuid: &Uuid) -> bool {
+        self.tokens.contains(uuid)
     }
 }
 
@@ -130,6 +129,17 @@ pub struct WriterThread {
 
 impl WriterThread {
     pub fn send(&self, item: WorkItem) -> Result<()> {
+        if !self.uuid_cache.has_application(&item.token) {
+            only_every::only_every!(
+                Duration::from_secs(30),
+                log::info!(
+                    "Disgarding item with token {} because it was unrecognized",
+                    &item.token
+                )
+            );
+            return Ok(());
+        }
+
         self.sender.try_send(item)?;
         Ok(())
     }
@@ -343,16 +353,14 @@ async fn write_work_item(
 ) -> Result<()> {
     let uc = &writer.uuid_cache;
 
-    let application = uc
-        .get_application(&work.payload.application_name)
-        .ok_or_else(|| anyhow::anyhow!("Unable to find UUID for application"))?;
+    // Note that application is validated in send.
     let os = uc.get_os(&work.payload.os);
     let architecture = uc.get_architecture(&work.payload.simdsp.cpu_architecture);
     let cpu_manufacturer = uc.get_cpu_manufacturer(&work.payload.simdsp.cpu_manufacturer);
     let day = work.received_at.duration_trunc(CDuration::days(1))?;
 
     let context = Context {
-        application,
+        application: work.token,
         os,
         architecture,
         cpu_manufacturer,

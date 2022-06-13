@@ -39,12 +39,16 @@ fn compute_sleep(attempts: u64) -> Result<Duration> {
 fn attempt_sending(
     client: &Client,
     url: &reqwest::Url,
+    token: &str,
     payload: &hwsurvey_payloads::PayloadV1,
 ) -> Result<()> {
     let serialized = serde_json::to_string(payload)?;
 
+    let mut url = url.join(SUBPATH)?;
+    url.query_pairs_mut().append_pair("token", token);
+
     let resp = client
-        .post(url.join(SUBPATH)?)
+        .post(url)
         .body(serialized)
         .timeout(REQUEST_TIMEOUT)
         .send()?;
@@ -67,13 +71,13 @@ fn attempt_sending(
     Ok(())
 }
 
-fn sending_thread_fallible(url: String, appname: String, max_attempts: u64) -> Result<()> {
+fn sending_thread_fallible(url: String, token: String, max_attempts: u64) -> Result<()> {
     let url = reqwest::Url::parse(&url)?;
-    let payload = crate::build_payload::build_payload(appname)?;
+    let payload = crate::build_payload::build_payload()?;
     let client = Client::new();
 
     for i in 1..=max_attempts {
-        match attempt_sending(&client, &url, &payload) {
+        match attempt_sending(&client, &url, &token, &payload) {
             Ok(_) => break,
             Err(e) => {
                 log::warn!("Error sending metrics. Retrying. Got: {:?}", e);
@@ -90,12 +94,12 @@ fn sending_thread_fallible(url: String, appname: String, max_attempts: u64) -> R
     Ok(())
 }
 
-pub fn send_synchronously(url: String, appname: String, max_attempts: u64) {
-    if let Err(e) = sending_thread_fallible(url, appname, max_attempts) {
+pub fn send_synchronously(url: String, token: String, max_attempts: u64) {
+    if let Err(e) = sending_thread_fallible(url, token, max_attempts) {
         log::warn!("Unable to send metrics: {:?}", e);
     }
 }
 
-pub fn send_metrics(url: String, appname: String) {
-    std::thread::spawn(|| send_synchronously(url, appname, MAX_ATTEMPTS));
+pub fn send_metrics(url: String, token: String) {
+    std::thread::spawn(|| send_synchronously(url, token, MAX_ATTEMPTS));
 }

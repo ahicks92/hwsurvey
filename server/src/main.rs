@@ -66,12 +66,14 @@ async fn main() -> Result<()> {
     let submit = warp::path!("submit" / "v1")
         .and(warp::post())
         .and(warp::filters::body::content_length_limit(1024 * 10))
+        .and(warp::query::<api::submit_v1::Qparams>())
         .and(ip_filter)
         .and(country_filter)
         .and(warp::filters::body::bytes())
-        .then(move |ip, country, body| {
-            api::submit_v1::submit_v1(writer.clone(), ip, country, body)
-        });
+        .then(move |qparams, ip, country, body| {
+            api::submit_v1::submit_v1(writer.clone(), qparams, ip, country, body)
+        })
+        .with(warp::log("hwsurvey_server::routing"));
 
     warp::serve(submit).run((ip, args.port)).await;
     Ok(())
