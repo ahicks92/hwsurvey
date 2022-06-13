@@ -63,16 +63,16 @@ async fn main() -> Result<()> {
             x
         });
 
-    let report = warp::path!("report" / "v1")
+    let submit = warp::path!("submit" / "v1")
         .and(warp::post())
         .and(warp::filters::body::content_length_limit(1024 * 10))
         .and(ip_filter)
         .and(country_filter)
         .and(warp::filters::body::bytes())
         .then(move |ip, country, body| {
-            api::report_v1::report_v1(writer.clone(), ip, country, body)
+            api::submit_v1::submit_v1(writer.clone(), ip, country, body)
         });
 
-    warp::serve(report).run((ip, args.port)).await;
+    warp::serve(submit).run((ip, args.port)).await;
     Ok(())
 }

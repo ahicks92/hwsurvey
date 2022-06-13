@@ -8,7 +8,7 @@ use hwsurvey_payloads::PayloadV1;
 
 use crate::writer::WriterThread;
 
-pub async fn report_v1_fallible(
+pub async fn submit_v1_fallible(
     writer: &WriterThread,
     ip: Option<String>,
     country: Option<String>,
@@ -26,13 +26,13 @@ pub async fn report_v1_fallible(
     Ok(())
 }
 
-pub async fn report_v1(
+pub async fn submit_v1(
     writer: Arc<WriterThread>,
     ip: Option<String>,
     country: Option<String>,
     body: Bytes,
 ) -> impl warp::reply::Reply {
-    let status = match report_v1_fallible(&*writer, ip, country, body).await {
+    let status = match submit_v1_fallible(&*writer, ip, country, body).await {
         Ok(_) => warp::http::StatusCode::OK,
         Err(e) => {
             only_every::only_every!(Duration::from_secs(3), {

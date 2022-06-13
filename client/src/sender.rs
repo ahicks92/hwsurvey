@@ -9,7 +9,7 @@ const JITTER: Duration = Duration::from_secs(20);
 const MAX_ATTEMPTS: u64 = 5;
 
 /// Where are we going?
-const SUBPATH: &str = "/report/v1";
+const SUBPATH: &str = "/submit/v1";
 
 /// This should be large because we're going to be running in one GCP region for all over the world.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
